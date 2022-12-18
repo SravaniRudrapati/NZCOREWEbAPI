@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using NZWalks.API.Models.Domain;
+using NZWalks.API.Models.DTO;
 using NZWalks.API.Repositories;
 
 namespace NZWalks.API.Controllers
@@ -11,11 +12,15 @@ namespace NZWalks.API.Controllers
     {
         private readonly IWalkRepository _walkRepository;
         private readonly IMapper _mapper;
+        private readonly IRegionRepository _regionRepository;
+        private readonly IWalkDifficultyRepository _walkDifficultyRepository;
 
-        public WalksController(IWalkRepository walkRepository, IMapper mapper)
+        public WalksController(IWalkRepository walkRepository, IMapper mapper,IRegionRepository regionRepository,IWalkDifficultyRepository walkDifficultyRepository)
         {
             _walkRepository = walkRepository;
             _mapper = mapper;
+            _regionRepository = regionRepository;
+            _walkDifficultyRepository = walkDifficultyRepository;
         }
         [HttpGet]
         public async Task<IActionResult> GetAllWalksAsync()
@@ -62,6 +67,12 @@ namespace NZWalks.API.Controllers
         [HttpPost]
         public async Task<IActionResult> AddWalkAsync([FromBody] Models.DTO.AddWalkRequest addWalkRequest)
         {
+            //Validating addWalkRequest
+            if(!(await ValidateAddWalkAsync(addWalkRequest)))
+            {
+                return BadRequest(ModelState);
+            }
+            
             //Convert from DTO to domain model
 
             var walk = new Models.Domain.Walk()
@@ -92,6 +103,13 @@ namespace NZWalks.API.Controllers
         [Route("{id:guid}")]
         public async Task<IActionResult>  UpdateWalkAsync([FromRoute]Guid id,[FromBody]Models.DTO.UpdateWalkRequest updateWalkRequest)
         {
+            //Validating the incoming updateWalkRequest
+            if(!(await ValidateUpdateWalkAsync(updateWalkRequest)))
+            {
+                return BadRequest(ModelState);
+            }
+
+
             //convert DTO to domain model
             var walkdomain = new Models.Domain.Walk
             {
@@ -145,8 +163,84 @@ namespace NZWalks.API.Controllers
             }
             var walkDTO=_mapper.Map<Models.DTO.Walk>(walk);
 
-            return Ok(walk);
+            return Ok(walkDTO);
 
         }
+
+        #region PrivateMethods
+
+         private async Task<bool> ValidateAddWalkAsync(Models.DTO.AddWalkRequest addWalkRequest)
+         {
+            if(addWalkRequest==null)
+            {
+                ModelState.AddModelError(nameof(addWalkRequest), $"{nameof(addWalkRequest)} cannot be empty");
+            }
+            if(string.IsNullOrEmpty(addWalkRequest.Name))
+            {
+                ModelState.AddModelError(nameof(addWalkRequest.Name), $"{nameof(addWalkRequest.Name)} cannot be null or empty or whitespace");
+            }
+
+            if(addWalkRequest.Length < 0)
+
+            {
+                ModelState.AddModelError(nameof(addWalkRequest.Length), $"{nameof(addWalkRequest.Length)} cannot be less than zero");
+            }
+             var region=await _regionRepository.GetRegionAsync(addWalkRequest.RegionId);
+            if(region==null)
+            {
+                ModelState.AddModelError(nameof(addWalkRequest.RegionId), $"{nameof(addWalkRequest.RegionId)} is invalid");
+            }
+
+              var walkdifficulty=await _walkDifficultyRepository.GetWalkDifficultyAsync(addWalkRequest.WalkDifficultyId);
+              if(walkdifficulty==null)
+              {
+                ModelState.AddModelError(nameof(addWalkRequest.WalkDifficultyId), $"{nameof(addWalkRequest.WalkDifficultyId)} is invalid");
+
+              }
+              if(ModelState.ErrorCount>0)
+              {
+                return false;
+
+              }
+            return true;
+
+         }
+
+        private async Task<bool> ValidateUpdateWalkAsync(Models.DTO.UpdateWalkRequest updateWalkRequest)
+        {
+            if(updateWalkRequest == null)
+            {
+                ModelState.AddModelError(nameof(updateWalkRequest),$"{nameof(updateWalkRequest)} cannot be empty");
+            }
+            if(string.IsNullOrEmpty(updateWalkRequest.Name))
+            {
+                ModelState.AddModelError(nameof(updateWalkRequest.Name),$"{nameof(updateWalkRequest.Name)} cannot be null or empty or whitespace");
+            }
+
+            if (updateWalkRequest.Length < 0)
+            {
+                ModelState.AddModelError(nameof(updateWalkRequest.Length), $"{nameof(updateWalkRequest.Length)} cannot be less than zero");
+            }
+            var region = await _regionRepository.GetRegionAsync(updateWalkRequest.RegionId);
+            if (region == null)
+            {
+                ModelState.AddModelError(nameof(updateWalkRequest.RegionId), $"{nameof(updateWalkRequest.RegionId)} is invalid");
+            }
+
+            var walkdifficulty = await _walkDifficultyRepository.GetWalkDifficultyAsync(updateWalkRequest.WalkDifficultyId);
+            if (walkdifficulty == null)
+            {
+                ModelState.AddModelError(nameof(updateWalkRequest.WalkDifficultyId), $"{nameof(updateWalkRequest.WalkDifficultyId)} is invalid");
+
+            }
+            if (ModelState.ErrorCount > 0)
+            {
+                return false;
+
+            }
+            return true;
+
+        }
+        #endregion
     }
 }
